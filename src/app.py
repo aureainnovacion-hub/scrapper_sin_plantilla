@@ -20,10 +20,105 @@ load_dotenv(PROJECT_ROOT / ".env")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/leads.db")
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "email_comercial.html"
 
+# ─────────────────────────────────────────────
+# Sectores y ubicaciones de Páginas Amarillas
+# ─────────────────────────────────────────────
+
+SECTORES = [
+    "instalaciones solares",
+    "fontanería",
+    "electricistas",
+    "climatización y aire acondicionado",
+    "reformas y construcción",
+    "cerrajería",
+    "pintura y decoración",
+    "jardinería y paisajismo",
+    "mudanzas",
+    "carpintería",
+    "albañilería",
+    "impermeabilizaciones",
+    "piscinas",
+    "alarmas y seguridad",
+    "telecomunicaciones",
+    "informática y reparación de ordenadores",
+    "asesorías y gestorías",
+    "abogados",
+    "clínicas dentales",
+    "clínicas veterinarias",
+    "fisioterapia",
+    "gimnasios",
+    "academias",
+    "restaurantes",
+    "hoteles",
+    "inmobiliarias",
+    "talleres mecánicos",
+    "autoescuelas",
+    "transporte y logística",
+    "supermercados y alimentación",
+]
+
+PROVINCIAS = {
+    "Toda España": "",
+    "Álava": "alava",
+    "Albacete": "albacete",
+    "Alicante": "alicante",
+    "Almería": "almeria",
+    "Asturias": "asturias",
+    "Ávila": "avila",
+    "Badajoz": "badajoz",
+    "Barcelona": "barcelona",
+    "Burgos": "burgos",
+    "Cáceres": "caceres",
+    "Cádiz": "cadiz",
+    "Cantabria": "cantabria",
+    "Castellón": "castellon",
+    "Ciudad Real": "ciudad-real",
+    "Córdoba": "cordoba",
+    "Cuenca": "cuenca",
+    "Girona": "girona",
+    "Granada": "granada",
+    "Guadalajara": "guadalajara",
+    "Guipúzcoa": "guipuzcoa",
+    "Huelva": "huelva",
+    "Huesca": "huesca",
+    "Islas Baleares": "islas-baleares",
+    "Jaén": "jaen",
+    "La Coruña": "la-coruna",
+    "La Rioja": "la-rioja",
+    "Las Palmas": "las-palmas",
+    "León": "leon",
+    "Lérida": "lerida",
+    "Lugo": "lugo",
+    "Madrid": "madrid",
+    "Málaga": "malaga",
+    "Murcia": "murcia",
+    "Navarra": "navarra",
+    "Orense": "orense",
+    "Palencia": "palencia",
+    "Pontevedra": "pontevedra",
+    "Salamanca": "salamanca",
+    "Santa Cruz de Tenerife": "santa-cruz-de-tenerife",
+    "Segovia": "segovia",
+    "Sevilla": "sevilla",
+    "Soria": "soria",
+    "Tarragona": "tarragona",
+    "Teruel": "teruel",
+    "Toledo": "toledo",
+    "Valencia": "valencia",
+    "Valladolid": "valladolid",
+    "Vizcaya": "vizcaya",
+    "Zamora": "zamora",
+    "Zaragoza": "zaragoza",
+    "Ceuta": "ceuta",
+    "Melilla": "melilla",
+}
+
+# ─────────────────────────────────────────────
 # Configuración de la página
+# ─────────────────────────────────────────────
+
 st.set_page_config(page_title="AI Client Scrapper - Panel de Control", layout="wide", page_icon="🚀")
 
-# Estilos personalizados
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -41,49 +136,65 @@ def get_session():
 
 session = get_session()
 
-# --- Funciones de Negocio ---
 def get_leads_df():
-    """Obtiene los leads de la base de datos como DataFrame."""
     try:
         engine = create_engine(DATABASE_URL)
         return pd.read_sql("SELECT * FROM leads ORDER BY fecha_scraping DESC", engine)
     except Exception:
         return pd.DataFrame()
 
-# --- Sidebar ---
+# ─────────────────────────────────────────────
+# Sidebar
+# ─────────────────────────────────────────────
+
 st.sidebar.title("⚙️ Configuración")
-keyword  = st.sidebar.text_input("Palabra clave de búsqueda", value=os.getenv("SEARCH_KEYWORD", "instalaciones solares"))
-location = st.sidebar.text_input("Ubicación (opcional)", value="", placeholder="ej: badajoz, madrid, sevilla...")
+
+# Sector — desplegable con opción de texto libre
+sector_opciones = ["✏️ Escribir manualmente..."] + sorted(SECTORES)
+sector_sel = st.sidebar.selectbox("Sector / Actividad", sector_opciones)
+if sector_sel == "✏️ Escribir manualmente...":
+    keyword = st.sidebar.text_input("Escribe la palabra clave", value="")
+else:
+    keyword = sector_sel
+
+# Provincia — desplegable
+provincia_nombre = st.sidebar.selectbox("Provincia", list(PROVINCIAS.keys()))
+location = PROVINCIAS[provincia_nombre]
+
 max_pages = st.sidebar.slider("Páginas por fuente", 1, 10, 2)
 st.sidebar.divider()
 
 if st.sidebar.button("🔍 Lanzar Scraper"):
-    st.sidebar.info("Iniciando búsqueda... Revisa los logs para el progreso.")
-    with st.spinner(f'Buscando "{keyword}" en {location or "toda España"}...'):
-        subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / "src" / "scraper.py")],
-            env={
-                **os.environ,
-                "SEARCH_KEYWORD": keyword,
-                "SEARCH_LOCATION": location,
-                "MAX_PAGES": str(max_pages),
-            }
-        )
-        # Enriquecimiento solo si el script existe
-        enrich_path = PROJECT_ROOT / "src" / "enrich_leads.py"
-        if enrich_path.exists():
-            subprocess.run([sys.executable, str(enrich_path)])
+    if not keyword:
+        st.sidebar.error("Escribe o selecciona un sector antes de buscar.")
+    else:
+        st.sidebar.info("Iniciando búsqueda... Revisa los logs para el progreso.")
+        with st.spinner(f'Buscando "{keyword}" en {provincia_nombre}...'):
+            subprocess.run(
+                [sys.executable, str(PROJECT_ROOT / "src" / "scraper.py")],
+                env={
+                    **os.environ,
+                    "SEARCH_KEYWORD": keyword,
+                    "SEARCH_LOCATION": location,
+                    "MAX_PAGES": str(max_pages),
+                }
+            )
+            enrich_path = PROJECT_ROOT / "src" / "enrich_leads.py"
+            if enrich_path.exists():
+                subprocess.run([sys.executable, str(enrich_path)])
 
-    st.sidebar.success("Búsqueda completada.")
-    st.rerun()
+        st.sidebar.success("Búsqueda completada.")
+        st.rerun()
 
-# --- Dashboard Principal ---
+# ─────────────────────────────────────────────
+# Dashboard Principal
+# ─────────────────────────────────────────────
+
 st.title("🚀 AI Client Scrapper")
 st.subheader("Gestión Inteligente de Leads y Subvenciones")
 
 df = get_leads_df()
 
-# Métricas — con comprobación de columnas para evitar KeyError
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric("Total Leads", len(df))
@@ -99,7 +210,10 @@ with col4:
 
 st.divider()
 
-# --- Gestión de Leads ---
+# ─────────────────────────────────────────────
+# Tabs
+# ─────────────────────────────────────────────
+
 tab1, tab2 = st.tabs(["📋 Listado de Leads", "📧 Editor de Plantilla"])
 
 with tab1:
@@ -108,7 +222,6 @@ with tab1:
     if df.empty:
         st.info("No hay leads todavía. Lanza el scraper desde el panel lateral.")
     else:
-        # Filtros
         f_col1, f_col2 = st.columns(2)
         with f_col1:
             search_term = st.text_input("Filtrar por nombre o NIF")
@@ -124,15 +237,13 @@ with tab1:
         if only_priority and 'es_prioritario' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['es_prioritario'] == True]
 
-        # Columnas a mostrar — solo las que existan
-        base_cols = ['id', 'nombre', 'nif', 'email', 'web', 'telefono', 'fuente', 'contactado']
+        base_cols     = ['id', 'nombre', 'nif', 'email', 'web', 'telefono', 'fuente', 'contactado']
         optional_cols = ['total_subvenciones', 'num_concesiones', 'es_prioritario']
         show_cols = base_cols + [c for c in optional_cols if c in filtered_df.columns]
         show_cols = [c for c in show_cols if c in filtered_df.columns]
 
         st.dataframe(filtered_df[show_cols], use_container_width=True, hide_index=True)
 
-        # Acción individual
         st.write("---")
         st.write("### Acciones sobre Lead")
         lead_ids = filtered_df['id'].tolist() if not filtered_df.empty else []
@@ -160,9 +271,9 @@ with tab1:
                             st.info("Re-enviando...")
                     else:
                         if st.button("🚀 Enviar Propuesta Ahora"):
-                            jinja_env = Environment(loader=FileSystemLoader(str(PROJECT_ROOT / "templates")))
-                            template  = jinja_env.get_template("email_comercial.html")
-                            sub_val   = getattr(selected_lead, 'total_subvenciones', 0) or 0
+                            jinja_env    = Environment(loader=FileSystemLoader(str(PROJECT_ROOT / "templates")))
+                            template     = jinja_env.get_template("email_comercial.html")
+                            sub_val      = getattr(selected_lead, 'total_subvenciones', 0) or 0
                             html_content = template.render(
                                 nombre_empresa=selected_lead.nombre,
                                 total_subvenciones=f"{sub_val:,.2f}"
