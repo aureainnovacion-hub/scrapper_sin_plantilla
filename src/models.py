@@ -14,6 +14,8 @@ from sqlalchemy import (
     Boolean,
     create_engine,
     UniqueConstraint,
+    inspect,
+    text,
 )
 from sqlalchemy.orm import declarative_base, Session
 
@@ -30,15 +32,16 @@ class Lead(Base):
     web = Column(String(512), nullable=True)
     nif = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)
+    telefono = Column(String(50), nullable=True)
     fuente = Column(String(100), nullable=True)
     keyword = Column(String(100), nullable=True)
     fecha_scraping = Column(DateTime, default=datetime.utcnow, nullable=False)
-    
+
     # Campos de subvenciones
     total_subvenciones = Column(Float, default=0.0, nullable=True)
     num_concesiones = Column(Integer, default=0, nullable=True)
     es_prioritario = Column(Boolean, default=False, nullable=True)
-    
+
     # Campo de seguimiento comercial
     contactado = Column(Boolean, default=False, nullable=False)
 
@@ -49,7 +52,7 @@ class Lead(Base):
     def __repr__(self) -> str:
         return (
             f"<Lead id={self.id} nombre='{self.nombre}' "
-            f"web='{self.web}' email='{self.email}' contactado={self.contactado}>"
+            f"email='{self.email}' telefono='{self.telefono}' contactado={self.contactado}>"
         )
 
     def to_dict(self) -> dict:
@@ -59,6 +62,7 @@ class Lead(Base):
             "web": self.web,
             "nif": self.nif,
             "email": self.email,
+            "telefono": self.telefono,
             "fuente": self.fuente,
             "keyword": self.keyword,
             "fecha_scraping": (
@@ -72,15 +76,15 @@ class Lead(Base):
 
 
 def init_db(database_url: str) -> Session:
-    """
-    Inicializa la base de datos SQLite y devuelve una sesión activa.
-
-    Args:
-        database_url: URL de conexión SQLAlchemy (ej: 'sqlite:///data/leads.db')
-
-    Returns:
-        Sesión SQLAlchemy lista para usar.
-    """
     engine = create_engine(database_url, echo=False)
     Base.metadata.create_all(engine)
+
+    # Migración automática: añadir columna telefono si no existe
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        cols = [c["name"] for c in inspector.get_columns("leads")]
+        if "telefono" not in cols:
+            conn.execute(text("ALTER TABLE leads ADD COLUMN telefono VARCHAR(50)"))
+            conn.commit()
+
     return Session(engine)

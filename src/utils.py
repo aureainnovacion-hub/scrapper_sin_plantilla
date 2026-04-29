@@ -149,14 +149,22 @@ def normalize_url(url: Optional[str]) -> Optional[str]:
 # ─────────────────────────────────────────────
 
 def save_lead(session: Session, lead_data: dict, logger: logging.Logger) -> bool:
-    """Inserta o actualiza un lead en la base de datos."""
-    nombre = lead_data.get("nombre", "").strip()
-    fuente = lead_data.get("fuente", "desconocida")
-    web = normalize_url(lead_data.get("web"))
-    nif = lead_data.get("nif")
-    email = lead_data.get("email")
+    """
+    Guarda un lead si tiene nombre + al menos un dato de contacto
+    (email, teléfono o web).
+    """
+    nombre   = lead_data.get("nombre", "").strip()
+    fuente   = lead_data.get("fuente", "desconocida")
+    web      = normalize_url(lead_data.get("web"))
+    nif      = lead_data.get("nif")
+    email    = lead_data.get("email")
+    telefono = lead_data.get("telefono")
 
-    if not nombre or not (web or nif or email):
+    if not nombre or not (email or telefono or web):
+        logger.debug(
+            f"Descartado (sin contacto): '{nombre}' "
+            f"| email={email} | tel={telefono} | web={web}"
+        )
         return False
 
     existing = session.query(Lead).filter_by(nombre=nombre, fuente=fuente).first()
@@ -171,6 +179,9 @@ def save_lead(session: Session, lead_data: dict, logger: logging.Logger) -> bool
         if not existing.web and web:
             existing.web = web
             updated = True
+        if not existing.telefono and telefono:
+            existing.telefono = telefono
+            updated = True
         if updated:
             session.commit()
             logger.info(f"Lead actualizado: '{nombre}'")
@@ -181,13 +192,14 @@ def save_lead(session: Session, lead_data: dict, logger: logging.Logger) -> bool
         web=web,
         nif=nif,
         email=email,
+        telefono=telefono,
         fuente=fuente,
         keyword=lead_data.get("keyword"),
     )
     session.add(lead)
     try:
         session.commit()
-        logger.info(f"Lead guardado: '{nombre}' | NIF={nif} | Email={email}")
+        logger.info(f"Lead guardado: '{nombre}' | Tel={telefono} | Email={email} | Web={web}")
         return True
     except Exception as exc:
         session.rollback()

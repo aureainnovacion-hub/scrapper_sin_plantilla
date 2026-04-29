@@ -39,7 +39,7 @@ def enrich_leads():
     
     # Obtener leads que tengan NIF y que no hayan sido enriquecidos aún 
     # (o simplemente todos los que tengan NIF)
-    leads_to_enrich = session.query(Lead).filter(Lead.nif.isnot(None)).all()
+    leads_to_enrich = session.query(Lead).filter(Lead.nif.isnot(None), Lead.total_subvenciones == 0.0).all()
     
     if not leads_to_enrich:
         logger.warning("No se encontraron leads con NIF para enriquecer.")
